@@ -33,6 +33,7 @@ from std_msgs.msg import UInt16
 from std_msgs.msg import UInt32
 from std_msgs.msg import Float32
 from std_msgs.msg import String
+from nav_msgs.msg import Odometry
  
 logging.basicConfig(level=logging.DEBUG)
 
@@ -76,9 +77,11 @@ class CrazyflieNode:
         self.roll_pub         = rospy.Publisher('stabilizer/roll', Float32)
         self.thrust_pub       = rospy.Publisher('stabilizer/thrust', Float32)
         self.yaw_pub          = rospy.Publisher('stabilizer/yaw', Float32)
+#	self.pose_pub	      = rospy.Publisher('uav_pose',Odometry)
  
-        rospy.Subscriber('thrust', UInt16, self.set_thrust)
-
+#        rospy.Subscriber('thrust', UInt16, self.set_thrust)
+	rospy.Subscriber('uav_cmd', Odometry, self.set_setpoint)
+	
         # Connection callbacks
         #TODO: for a lot of these, we just update the status and/or publish a value
         # it would be sweet if we could create a generic function to do that for us,
@@ -95,7 +98,11 @@ class CrazyflieNode:
         self.crazyflie.receivedPacket.add_callback(self.receivedPacket)
         
         #TODO: should be configurable, and support multiple devices
-        self.crazyflie.open_link("radio://0/10/250K")
+	if rospy.has_param("~radio_address"):
+		self.crazyflie.open_link(rospy.get_param("~radio_address"))
+    	else:
+		print("Radio Address Not Recieved from Parameter Server using default")		
+		self.crazyflie.open_link("radio://0/10/250K")
  
     def shut_down(self):
         try:
@@ -206,9 +213,16 @@ class CrazyflieNode:
         self.thrust = data["stabilizer.thrust"]
         self.yaw    = data["stabilizer.yaw"]
 
-    def set_thrust(self, data):
-        rospy.loginfo(rospy.get_name() + ": Setting thrust to: %d" % data.data)
-        self.cmd_thrust = data.data
+#    def set_thrust(self, data):
+#        rospy.loginfo(rospy.get_name() + ": Setting thrust to: %d" % data.data)
+#        self.cmd_thrust = data.data
+
+    def set_setpoint(self, data):
+        self.cmd_thrust = 65000*data.twist.twist.linear.z
+	self.cmd_yaw = -(180/3.14159)*data.twist.twist.angular.z
+	self.cmd_pitch = (180/3.14159)*data.pose.pose.orientation.y
+	self.cmd_roll = (180/3.14159)*data.pose.pose.orientation.x
+ #       rospy.loginfo(rospy.get_name() + ": Sending setpoint: %f, %f, %f, %f" % (self.cmd_roll, self.cmd_pitch, self.cmd_yaw, self.cmd_thrust))
 
     def run_node(self):
         self.link_quality_pub.publish(self.link_quality)
@@ -220,7 +234,7 @@ class CrazyflieNode:
         self.yaw_pub.publish(self.yaw)
         
         # Send commands to the Crazyflie
-#        rospy.loginfo(rospy.get_name() + ": Sending setpoint: %f, %f, %f, %d" % (self.cmd_roll, self.cmd_pitch, self.cmd_yaw, self.cmd_thrust))
+ #       rospy.loginfo(rospy.get_name() + ": Sending setpoint: %f, %f, %f, %d" % (self.cmd_roll, self.cmd_pitch, self.cmd_yaw, self.cmd_thrust))
         self.crazyflie.commander.send_setpoint(self.cmd_roll, self.cmd_pitch, self.cmd_yaw, self.cmd_thrust)
          
 def run():
