@@ -218,6 +218,13 @@ class CrazyflieNode:
 #        self.cmd_thrust = data.data
 
     def set_setpoint(self, data):
+
+	if data.twist.twist.linear.z > 1:
+		data.twist.twist.linear.z = 1;
+	
+	if data.twist.twist.linear.z < 0:
+		data.twist.twist.linear.z = 0;
+
         self.cmd_thrust = 65000*data.twist.twist.linear.z
 	self.cmd_yaw = -(180/3.14159)*data.twist.twist.angular.z
 	self.cmd_pitch = (180/3.14159)*data.pose.pose.orientation.y
